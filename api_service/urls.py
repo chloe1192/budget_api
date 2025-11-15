@@ -1,0 +1,19 @@
+from django.urls import path
+from . import views
+
+urlpatterns = [
+    # user
+    path('user/create/', views.create_user, name='create_user'),
+    path('user/login/', views.login_user, name='login_user'),
+    path('user/me/', views.get_user, name='get_user'),
+    path('user/edit/', views.user_detail, name='edut_user'),
+    path('user/delete/', views.user_detail, name='delete_user'),
+    # categories
+    path('categories/', views.get_categories, name='get_categories'),
+    path('categories/create/', views.create_category, name='get_categories'),
+    path('categories/<int:pk>/', views.category_detail, name='get_category'),
+    # transactions
+    path('transactions/', views.get_transactions, name='get_transactions'),
+    path('transactions/create', views.create_transaction, name='create_transaction'),
+    path('transactions/<int:pk>', views.transaction_detail, name='edit_transaction')
+]
