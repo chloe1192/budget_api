@@ -1,5 +1,6 @@
 # ...existing code...
 from rest_framework import serializers
+from django.utils import timezone
 from .models import Category, Transaction, User, Goal
 
 class UserSerializer(serializers.ModelSerializer):
@@ -71,6 +72,13 @@ class TransactionSerializer(serializers.ModelSerializer):
       to the authenticated user (not implemented here).
     """
 
+    # Enforce ISO8601 input with clearer error message for date
+    date = serializers.DateTimeField(
+      error_messages={
+        'invalid': 'Invalid datetime format for "date". Use ISO 8601, e.g., 2025-11-16T14:30:00Z or 2025-11-16T14:30:00+00:00.'
+      }
+    )
+
     # Accept category PK on write, map to `category` relation.
     category_id = serializers.PrimaryKeyRelatedField(
         queryset=Category.objects.all(), source='category', write_only=True
@@ -84,6 +92,12 @@ class TransactionSerializer(serializers.ModelSerializer):
         # user and category are managed server-side / read-only in responses
         read_only_fields = ['user', 'category']
 
+    def validate_date(self, value):
+      """Require timezone-aware datetimes for consistency."""
+      if timezone.is_naive(value):
+        raise serializers.ValidationError('The "date" must include a timezone offset (e.g., Z or +00:00).')
+      return value
+
 class GoalSerializer(serializers.ModelSerializer):
     """Serializer for Goal model.
 
@@ -92,7 +106,20 @@ class GoalSerializer(serializers.ModelSerializer):
       project rules require it.
     """
 
+    # Enforce ISO8601 input with clearer error message for date
+    date = serializers.DateTimeField(
+      error_messages={
+        'invalid': 'Invalid datetime format for "date". Use ISO 8601, e.g., 2025-11-16T14:30:00Z or 2025-11-16T14:30:00+00:00.'
+      }
+    )
+
     class Meta:
         model = Goal
         fields = '__all__'
         read_only_fields = ['user', 'created_at', 'updated_at']
+
+    def validate_date(self, value):
+      """Require timezone-aware datetimes for consistency."""
+      if timezone.is_naive(value):
+        raise serializers.ValidationError('The "date" must include a timezone offset (e.g., Z or +00:00).')
+      return value
