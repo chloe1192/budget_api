@@ -27,6 +27,8 @@ from django.utils.dateparse import parse_datetime
 from django.utils import timezone
 from django.db.models import Q, Count
 from django_ratelimit.decorators import ratelimit
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
 from .models import Category, Transaction, User, Goal
 from .serializers import CategorySerializer, TransactionSerializer, UserSerializer, GoalSerializer
 
@@ -152,6 +154,11 @@ def user_detail(request):
         serializer = UserSerializer(user, data=request.data)
         if serializer.is_valid():
             if 'password' in request.data:
+                # Validate new password
+                try:
+                    validate_password(request.data['password'], user)
+                except DjangoValidationError as e:
+                    return Response({'password': e.messages}, status=status.HTTP_400_BAD_REQUEST)
                 user.set_password(request.data['password'])
                 user.save()
             serializer.save()
