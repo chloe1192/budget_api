@@ -20,9 +20,27 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.authtoken.models import Token
+from rest_framework.pagination import PageNumberPagination
 from django.contrib.auth import authenticate
+from django.shortcuts import get_object_or_404
+from django.utils.dateparse import parse_datetime
+from django.utils import timezone
+from django.db.models import Q
 from .models import Category, Transaction, User, Goal
 from .serializers import CategorySerializer, TransactionSerializer, UserSerializer, GoalSerializer
+
+
+class StandardResultsSetPagination(PageNumberPagination):
+    """Default paginator for list endpoints.
+
+    Query params:
+    - page: page number (1-based)
+    - page_size: items per page (max 100)
+    """
+
+    page_size = 10
+    page_size_query_param = 'page_size'
+    max_page_size = 100
 
 
 @api_view(['POST'])
@@ -100,10 +118,7 @@ def user_detail(request):
     """
 
     pk = request.user.pk
-    try:
-        user = User.objects.get(pk=pk)
-    except User.DoesNotExist:
-        return Response({"error": "Customer not found"}, status=status.HTTP_404_NOT_FOUND)
+    user = get_object_or_404(User, pk=pk)
 
     if request.method == 'GET':
         serializer = UserSerializer(user)
@@ -135,7 +150,37 @@ def get_categories(request):
     """
 
     categories = Category.objects.filter(user=request.user)
-    return Response(CategorySerializer(categories, many=True).data)
+
+    # Optional filter by type (INCOME | EXPENSE)
+    type_param = request.query_params.get('type')
+    if type_param:
+        categories = categories.filter(type=type_param)
+
+    # Optional search by name
+    q = request.query_params.get('q')
+    if q:
+        categories = categories.filter(name__icontains=q)
+
+    # Optional ordering (default name asc). Allowed: name, -name
+    ordering = request.query_params.get('ordering', 'name')
+    if ordering not in ['name', '-name']:
+        ordering = 'name'
+    categories = categories.order_by(ordering)
+
+    # Only paginate when explicitly requested to preserve backward compatibility
+    paginate_flag = request.query_params.get('paginate')
+    has_page_params = (
+        'page' in request.query_params or 'page_size' in request.query_params or (paginate_flag and paginate_flag.lower() in ['1', 'true', 'yes'])
+    )
+
+    if has_page_params:
+        paginator = StandardResultsSetPagination()
+        page = paginator.paginate_queryset(categories, request)
+        serializer = CategorySerializer(page, many=True)
+        return paginator.get_paginated_response(serializer.data)
+    else:
+        serializer = CategorySerializer(categories, many=True)
+        return Response(serializer.data)
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -165,10 +210,7 @@ def category_detail(request, pk):
     categories via the queryset filter ``user=request.user``.
     """
 
-    try:
-        category = Category.objects.get(pk=pk, user=request.user)
-    except Category.DoesNotExist:
-        return Response({"error": "Category not found"}, status=status.HTTP_404_NOT_FOUND)
+    category = get_object_or_404(Category, pk=pk, user=request.user)
 
     if request.method == 'GET':
         serializer = CategorySerializer(category)
@@ -196,8 +238,68 @@ def get_transactions(request):
     to reduce DB queries for large lists.
     """
 
-    transactions = Transaction.objects.filter(user=request.user).order_by('-date')
-    return Response(TransactionSerializer(transactions, many=True).data)
+    transactions = (Transaction.objects
+                    .filter(user=request.user)
+                    .select_related('category'))
+
+    # Filters
+    category_id = request.query_params.get('category_id')
+    if category_id:
+        transactions = transactions.filter(category_id=category_id)
+
+    type_param = request.query_params.get('type')  # INCOME | EXPENSE via category
+    if type_param:
+        transactions = transactions.filter(category__type=type_param)
+
+    start_date = request.query_params.get('start_date')  # ISO 8601
+    end_date = request.query_params.get('end_date')
+    if start_date:
+        dt = parse_datetime(start_date)
+        if dt is None:
+            return Response({
+                'error': {
+                    'start_date': 'Invalid datetime. Use ISO 8601, e.g., 2025-11-16T14:30:00Z or 2025-11-16T14:30:00+00:00.'
+                }
+            }, status=status.HTTP_400_BAD_REQUEST)
+        if timezone.is_naive(dt):
+            dt = timezone.make_aware(dt, timezone.get_current_timezone())
+        transactions = transactions.filter(date__gte=dt)
+    if end_date:
+        dt = parse_datetime(end_date)
+        if dt is None:
+            return Response({
+                'error': {
+                    'end_date': 'Invalid datetime. Use ISO 8601, e.g., 2025-11-16T14:30:00Z or 2025-11-16T14:30:00+00:00.'
+                }
+            }, status=status.HTTP_400_BAD_REQUEST)
+        if timezone.is_naive(dt):
+            dt = timezone.make_aware(dt, timezone.get_current_timezone())
+        transactions = transactions.filter(date__lte=dt)
+
+    q = request.query_params.get('q')
+    if q:
+        transactions = transactions.filter(Q(title__icontains=q) | Q(description__icontains=q))
+
+    # Ordering: allowed fields only
+    allowed_ordering = ['date', '-date', 'amount', '-amount']
+    ordering = request.query_params.get('ordering', '-date')
+    if ordering not in allowed_ordering:
+        ordering = '-date'
+    transactions = transactions.order_by(ordering)
+
+    paginate_flag = request.query_params.get('paginate')
+    has_page_params = (
+        'page' in request.query_params or 'page_size' in request.query_params or (paginate_flag and paginate_flag.lower() in ['1', 'true', 'yes'])
+    )
+
+    if has_page_params:
+        paginator = StandardResultsSetPagination()
+        page = paginator.paginate_queryset(transactions, request)
+        serializer = TransactionSerializer(page, many=True)
+        return paginator.get_paginated_response(serializer.data)
+    else:
+        serializer = TransactionSerializer(transactions, many=True)
+        return Response(serializer.data)
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -234,10 +336,7 @@ def transaction_detail(request, pk):
     (``user=request.user``) to prevent access to other users' data.
     """
 
-    try:
-        transaction = Transaction.objects.get(pk=pk, user=request.user)
-    except Transaction.DoesNotExist:
-        return Response({"error": "transaction not found"}, status=status.HTTP_404_NOT_FOUND)
+    transaction = get_object_or_404(Transaction, pk=pk, user=request.user)
 
     if request.method == 'GET':
         serializer = TransactionSerializer(transaction)
@@ -263,9 +362,58 @@ def get_goals(request):
     Consider adding filtering and pagination for large result sets.
     """
 
-    goals = Goal.objects.filter(user=request.user).order_by('-date')
-    serializer = GoalSerializer(goals, many=True)
-    return Response(serializer.data)
+    goals = Goal.objects.filter(user=request.user)
+
+    # Filters
+    start_date = request.query_params.get('start_date')
+    end_date = request.query_params.get('end_date')
+    if start_date:
+        dt = parse_datetime(start_date)
+        if dt is None:
+            return Response({
+                'error': {
+                    'start_date': 'Invalid datetime. Use ISO 8601, e.g., 2025-11-16T14:30:00Z or 2025-11-16T14:30:00+00:00.'
+                }
+            }, status=status.HTTP_400_BAD_REQUEST)
+        if timezone.is_naive(dt):
+            dt = timezone.make_aware(dt, timezone.get_current_timezone())
+        goals = goals.filter(date__gte=dt)
+    if end_date:
+        dt = parse_datetime(end_date)
+        if dt is None:
+            return Response({
+                'error': {
+                    'end_date': 'Invalid datetime. Use ISO 8601, e.g., 2025-11-16T14:30:00Z or 2025-11-16T14:30:00+00:00.'
+                }
+            }, status=status.HTTP_400_BAD_REQUEST)
+        if timezone.is_naive(dt):
+            dt = timezone.make_aware(dt, timezone.get_current_timezone())
+        goals = goals.filter(date__lte=dt)
+
+    q = request.query_params.get('q')
+    if q:
+        goals = goals.filter(Q(title__icontains=q) | Q(description__icontains=q))
+
+    # Ordering
+    allowed_ordering = ['date', '-date', 'amount', '-amount', 'title', '-title']
+    ordering = request.query_params.get('ordering', '-date')
+    if ordering not in allowed_ordering:
+        ordering = '-date'
+    goals = goals.order_by(ordering)
+
+    paginate_flag = request.query_params.get('paginate')
+    has_page_params = (
+        'page' in request.query_params or 'page_size' in request.query_params or (paginate_flag and paginate_flag.lower() in ['1', 'true', 'yes'])
+    )
+
+    if has_page_params:
+        paginator = StandardResultsSetPagination()
+        page = paginator.paginate_queryset(goals, request)
+        serializer = GoalSerializer(page, many=True)
+        return paginator.get_paginated_response(serializer.data)
+    else:
+        serializer = GoalSerializer(goals, many=True)
+        return Response(serializer.data)
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -291,10 +439,7 @@ def goal_detail(request, pk):
     data access.
     """
 
-    try:
-        goal = Goal.objects.get(pk=pk, user=request.user)
-    except Goal.DoesNotExist:
-        return Response({"error": "Goal not found"}, status=status.HTTP_404_NOT_FOUND)
+    goal = get_object_or_404(Goal, pk=pk, user=request.user)
 
     if request.method == 'GET':
         serializer = GoalSerializer(goal)
