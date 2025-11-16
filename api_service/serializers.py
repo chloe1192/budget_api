@@ -4,7 +4,7 @@ from .models import Category, Transaction, User, Goal
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = '__all__'
+        fields = ['id', 'username', 'first_name', 'last_name', 'email', 'dob', 'avatar', 'initial_balance', 'created_at', 'edited_at', 'password']
         extra_kwargs = {'password': {'write_only': True}}
 
 class CategorySerializer(serializers.ModelSerializer):
