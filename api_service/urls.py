@@ -15,5 +15,9 @@ urlpatterns = [
     # transactions
     path('transactions/', views.get_transactions, name='get_transactions'),
     path('transactions/create', views.create_transaction, name='create_transaction'),
-    path('transactions/<int:pk>', views.transaction_detail, name='edit_transaction')
+    path('transactions/<int:pk>', views.transaction_detail, name='edit_transaction'),
+    # goals
+    path('goals/', views.get_goals, name='get_goals'),
+    path('goals/create/', views.create_goal, name='create_goal'),
+    path('goals/<int:pk>/', views.goal_detail, name='goal_detail'),
 ]
