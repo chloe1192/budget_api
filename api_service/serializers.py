@@ -15,7 +15,12 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         # Keep password write-only so it never appears in serialized output
         fields = ['id', 'username', 'first_name', 'last_name', 'email', 'dob', 'avatar', 'initial_balance', 'created_at', 'edited_at', 'password', 'total_balance']
-        extra_kwargs = {'password': {'write_only': True}}
+        extra_kwargs = {
+            'password': {'write_only': True, 'required': False},
+            'dob': {'required': False},
+            'avatar': {'required': False},
+            'initial_balance': {'required': False}
+        }
     
     def get_total_balance(self, obj):
         """Return the user's calculated total balance."""
