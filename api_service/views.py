@@ -26,6 +26,7 @@ from django.shortcuts import get_object_or_404
 from django.utils.dateparse import parse_datetime
 from django.utils import timezone
 from django.db.models import Q, Count
+from django_ratelimit.decorators import ratelimit
 from .models import Category, Transaction, User, Goal
 from .serializers import CategorySerializer, TransactionSerializer, UserSerializer, GoalSerializer
 
@@ -45,14 +46,25 @@ class StandardResultsSetPagination(PageNumberPagination):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@ratelimit(key='ip', rate='5/m', method='POST')
 def login_user (request):
     """Authenticate a user and return an auth token.
 
     Expects POST data: ``username`` and ``password``.
 
+    Rate limit: 5 requests per minute per IP address to prevent brute force attacks.
+
     Response (200): {"token": <token>, "user": { ... public user fields ... }}
     Response (400): {"error": "..."} on invalid credentials.
+    Response (429): Too many requests if rate limit exceeded.
     """
+    
+    # Check if rate limit was hit
+    if getattr(request, 'limited', False):
+        return Response(
+            {"error": "Too many login attempts. Please try again in a minute."},
+            status=status.HTTP_429_TOO_MANY_REQUESTS
+        )
 
     username = request.data.get('username')
     password = request.data.get('password')
@@ -73,10 +85,13 @@ def login_user (request):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@ratelimit(key='ip', rate='3/h', method='POST')
 def create_user(request):
     """Create a new user.
 
     Expected POST body: user fields (including a `password` field).
+
+    Rate limit: 3 requests per hour per IP address to prevent spam account creation.
 
     Notes:
     - The view ensures the provided password is hashed via ``set_password``
@@ -84,6 +99,13 @@ def create_user(request):
     - The serializer handles validation; sensitive fields should be
       write-only or excluded from serialized responses.
     """
+    
+    # Check if rate limit was hit
+    if getattr(request, 'limited', False):
+        return Response(
+            {"error": "Too many registration attempts. Please try again later."},
+            status=status.HTTP_429_TOO_MANY_REQUESTS
+        )
 
     serializer = UserSerializer(data=request.data)
     if serializer.is_valid():
@@ -196,12 +218,21 @@ def get_categories(request):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
+@ratelimit(key='user', rate='30/m', method='POST')
 def create_category(request):
     """Create a new category for the authenticated user.
 
     POST body should include: `name`, `type` and optional `color`.
     The `user` is set server-side to `request.user` to prevent spoofing.
+    
+    Rate limit: 30 requests per minute per user to prevent abuse.
     """
+    
+    if getattr(request, 'limited', False):
+        return Response(
+            {"error": "Too many requests. Please slow down."},
+            status=status.HTTP_429_TOO_MANY_REQUESTS
+        )
 
     serializer = CategorySerializer(data=request.data)
     if serializer.is_valid():
@@ -242,13 +273,22 @@ def category_detail(request, pk):
 # transactions
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
+@ratelimit(key='user', rate='100/m', method='GET')
 def get_transactions(request):
     """List transactions for the authenticated user.
 
     The view returns the user's transactions ordered by date (newest
     first). Consider adding pagination and `select_related('category')`
     to reduce DB queries for large lists.
+    
+    Rate limit: 100 requests per minute per user.
     """
+    
+    if getattr(request, 'limited', False):
+        return Response(
+            {"error": "Too many requests. Please slow down."},
+            status=status.HTTP_429_TOO_MANY_REQUESTS
+        )
 
     transactions = (Transaction.objects
                     .filter(user=request.user)
@@ -315,13 +355,22 @@ def get_transactions(request):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
+@ratelimit(key='user', rate='60/m', method='POST')
 def create_transaction(request):
     """Create a new transaction for the authenticated user.
 
     Required POST data: `title`, `amount`, `date`, and `category_id`.
     The view validates that the provided `category_id` belongs to the
     authenticated user before creating the transaction.
+    
+    Rate limit: 60 requests per minute per user to prevent abuse.
     """
+    
+    if getattr(request, 'limited', False):
+        return Response(
+            {"error": "Too many requests. Please slow down."},
+            status=status.HTTP_429_TOO_MANY_REQUESTS
+        )
 
     category_id = request.data.get('category_id')
     if not category_id:
@@ -429,12 +478,21 @@ def get_goals(request):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
+@ratelimit(key='user', rate='30/m', method='POST')
 def create_goal(request):
     """Create a new financial goal for the authenticated user.
 
     POST body must include `title`, `amount`, and `date`. The `user`
     is set server-side to `request.user`.
+    
+    Rate limit: 30 requests per minute per user to prevent abuse.
     """
+    
+    if getattr(request, 'limited', False):
+        return Response(
+            {"error": "Too many requests. Please slow down."},
+            status=status.HTTP_429_TOO_MANY_REQUESTS
+        )
 
     serializer = GoalSerializer(data=request.data)
     if serializer.is_valid():
