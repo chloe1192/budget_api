@@ -67,11 +67,8 @@ def create_user(request):
 
     serializer = UserSerializer(data=request.data)
     if serializer.is_valid():
-        user = serializer.save()
-        # Hash password before returning (serializer is write_only for password)
-        if 'password' in request.data:
-            user.set_password(request.data['password'])
-            user.save()
+        # Serializer.create() handles hashing the password
+        serializer.save()
         return Response(serializer.data, status=status.HTTP_201_CREATED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
