@@ -1,4 +1,3 @@
-# ...existing code...
 from rest_framework import serializers
 from django.utils import timezone
 from .models import Category, Transaction, User, Goal
@@ -9,12 +8,18 @@ class UserSerializer(serializers.ModelSerializer):
     Implements create() and update() to ensure passwords are hashed
     via the model's ``set_password`` method before saving.
     """
+    
+    total_balance = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = User
         # Keep password write-only so it never appears in serialized output
-        fields = ['id', 'username', 'first_name', 'last_name', 'email', 'dob', 'avatar', 'initial_balance', 'created_at', 'edited_at', 'password']
+        fields = ['id', 'username', 'first_name', 'last_name', 'email', 'dob', 'avatar', 'initial_balance', 'created_at', 'edited_at', 'password', 'total_balance']
         extra_kwargs = {'password': {'write_only': True}}
+    
+    def get_total_balance(self, obj):
+        """Return the user's calculated total balance."""
+        return obj.get_total_balance()
 
     def create(self, validated_data):
         """Create a new User instance and hash the password.

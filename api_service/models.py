@@ -1,5 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
+from django.db.models import Sum, Q
+from decimal import Decimal
 
 class User(AbstractUser):
     dob = models.DateTimeField(null=True, blank=True)
@@ -10,6 +12,20 @@ class User(AbstractUser):
     
     def __str__(self):
             return f"{self.first_name} {self.last_name}"
+    
+    def get_total_balance(self):
+        """Calculate total balance: initial_balance + income - expenses."""
+        income = Transaction.objects.filter(
+            user=self,
+            category__type='INCOME'
+        ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+        
+        expenses = Transaction.objects.filter(
+            user=self,
+            category__type='EXPENSE'
+        ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+        
+        return self.initial_balance + income - expenses
 
 class Category(models.Model):
     TYPE_CHOICES = [

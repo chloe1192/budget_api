@@ -16,7 +16,7 @@ behaviour (pagination, filtering) in a future refactor.
 """
 
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.authtoken.models import Token
@@ -25,7 +25,7 @@ from django.contrib.auth import authenticate
 from django.shortcuts import get_object_or_404
 from django.utils.dateparse import parse_datetime
 from django.utils import timezone
-from django.db.models import Q
+from django.db.models import Q, Count
 from .models import Category, Transaction, User, Goal
 from .serializers import CategorySerializer, TransactionSerializer, UserSerializer, GoalSerializer
 
@@ -44,6 +44,7 @@ class StandardResultsSetPagination(PageNumberPagination):
 
 
 @api_view(['POST'])
+@permission_classes([AllowAny])
 def login_user (request):
     """Authenticate a user and return an auth token.
 
@@ -71,6 +72,7 @@ def login_user (request):
     return Response({"error": "Usuário ou senha inválidos"}, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(['POST'])
+@permission_classes([AllowAny])
 def create_user(request):
     """Create a new user.
 
@@ -151,6 +153,11 @@ def get_categories(request):
 
     categories = Category.objects.filter(user=request.user)
 
+    # Optional filter by id
+    id_param = request.query_params.get('id')
+    if id_param:
+        categories = categories.filter(id=id_param)
+
     # Optional filter by type (INCOME | EXPENSE)
     type_param = request.query_params.get('type')
     if type_param:
@@ -166,6 +173,11 @@ def get_categories(request):
     if ordering not in ['name', '-name']:
         ordering = 'name'
     categories = categories.order_by(ordering)
+    
+    # order by transactions count descending
+    sort_by = request.query_params.get('sort_by')
+    if sort_by == 'transactions_count':
+        categories = categories.annotate(transactions_count=Count('transaction')).order_by('-transactions_count')
 
     # Only paginate when explicitly requested to preserve backward compatibility
     paginate_flag = request.query_params.get('paginate')
