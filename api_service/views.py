@@ -15,6 +15,7 @@ ViewSets/ModelViewSets for more concise routing and automatic
 behaviour (pagination, filtering) in a future refactor.
 """
 
+from django.conf import settings
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
@@ -71,7 +72,8 @@ def login_user (request):
     username = request.data.get('username')
     password = request.data.get('password')
     user_exists = get_object_or_404(User, username=username)
-    print("User exists: ", user_exists)
+    if not settings.PRODUCTION:
+        print("User exists: ", user_exists)
     if user_exists == "":
         return Response({"error": "O usuario nao existe"}, status=status.HTTP_400_BAD_REQUEST)
     user = authenticate(username=username, password=password)
@@ -113,7 +115,10 @@ def create_user(request):
         )
 
     serializer = UserSerializer(data=request.data)
-    print("serializer: ", serializer)
+    
+    if not settings.PRODUCTION:
+        print("UserSerializer: ", serializer)
+        
     if serializer.is_valid():
         # Serializer.create() handles hashing the password
         serializer.save()
@@ -134,9 +139,12 @@ def get_user(request):
     return Response(serializer.data)
 
 # TODO remove in production
-@api_view(['get'])
+@api_view(['GET'])
 @permission_classes([AllowAny])
-def fecth_all_users(request):
+def fetch_all_users(request):
+    if settings.PRODUCTION:
+        return Response(status=status.HTTP_403_FORBIDDEN)
+    
     users = User.objects.all()
     serializer = UserSerializer(users, many=True)
     return Response(serializer.data)

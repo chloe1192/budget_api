@@ -1,6 +1,7 @@
 """Custom password validators for enhanced security."""
 
 import re
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.utils.translation import gettext as _
 
@@ -16,7 +17,10 @@ class PasswordComplexityValidator:
     """
     
     def validate(self, password, user=None):
-        print("validating password")
+        
+        if not settings.PRODUTCION:
+            print("validating password")
+            
         if len(password) < 8:
             raise ValidationError(
                 _("Password must be at least 8 characters long."),
