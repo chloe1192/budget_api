@@ -18,6 +18,9 @@ load_dotenv()
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_BROWSER_XSS_FILTER = True
+X_FRAME_OPTIONS = 'DENY'
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.0/howto/deployment/checklist/
@@ -116,6 +119,9 @@ CACHES = {
 # Note: In development, LocMemCache works but shows warnings for production
 RATELIMIT_ENABLE = True
 RATELIMIT_USE_CACHE = 'default'
+
+DATA_UPLOAD_MAX_MEMORY_SIZE = 5242880
+FILE_UPLOAD_MAX_MEMORY_SIZE = 5242880
 
 # Silence django-ratelimit cache warnings in development
 # Remove this in production with proper Redis setup
