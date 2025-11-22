@@ -6,6 +6,7 @@ urlpatterns = [
     path('user/create/', views.create_user, name='create_user'),
     path('user/login/', views.login_user, name='login_user'),
     path('user/me/', views.get_user, name='get_user'),
+    path('user/list/', views.fecth_all_users, name="fecth_all_users"),
     path('user/edit/', views.user_detail, name='edut_user'),
     path('user/delete/', views.user_detail, name='delete_user'),
     # categories

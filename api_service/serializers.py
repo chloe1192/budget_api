@@ -1,6 +1,8 @@
 from rest_framework import serializers
 from django.utils import timezone
 from .models import Category, Transaction, User, Goal
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
 
 class UserSerializer(serializers.ModelSerializer):
     """Serializer for the custom User model.
@@ -25,7 +27,16 @@ class UserSerializer(serializers.ModelSerializer):
     def get_total_balance(self, obj):
         """Return the user's calculated total balance."""
         return obj.get_total_balance()
-
+    
+    def validate_password(self, value):
+      """Validate password using Django's password validators."""
+      if value:
+          try:
+              validate_password(value)
+          except ValidationError as e:
+              raise serializers.ValidationError(list(e.messages))
+      return value
+    
     def create(self, validated_data):
         """Create a new User instance and hash the password.
 
@@ -33,12 +44,14 @@ class UserSerializer(serializers.ModelSerializer):
         be removed from the dict before creating the instance so it is
         not stored in plaintext.
         """
-
+          
         password = validated_data.pop('password', None)
         user = super().create(validated_data)
         if password:
             user.set_password(password)
             user.save()
+        else:
+          return validated_data
         return user
 
     def update(self, instance, validated_data):

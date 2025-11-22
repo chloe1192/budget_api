@@ -16,6 +16,7 @@ class PasswordComplexityValidator:
     """
     
     def validate(self, password, user=None):
+        print("validating password")
         if len(password) < 8:
             raise ValidationError(
                 _("Password must be at least 8 characters long."),

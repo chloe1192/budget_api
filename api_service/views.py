@@ -48,7 +48,7 @@ class StandardResultsSetPagination(PageNumberPagination):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
-@ratelimit(key='ip', rate='5/m', method='POST')
+@ratelimit(key='ip', rate='1/m', method='POST')
 def login_user (request):
     """Authenticate a user and return an auth token.
 
@@ -70,6 +70,10 @@ def login_user (request):
 
     username = request.data.get('username')
     password = request.data.get('password')
+    user_exists = get_object_or_404(User, username=username)
+    print("User exists: ", user_exists)
+    if user_exists == "":
+        return Response({"error": "O usuario nao existe"}, status=status.HTTP_400_BAD_REQUEST)
     user = authenticate(username=username, password=password)
     if user:
         token, created = Token.objects.get_or_create(user=user)
@@ -87,7 +91,7 @@ def login_user (request):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
-@ratelimit(key='ip', rate='3/h', method='POST')
+@ratelimit(key='ip', rate='1000/h', method='POST')
 def create_user(request):
     """Create a new user.
 
@@ -101,7 +105,6 @@ def create_user(request):
     - The serializer handles validation; sensitive fields should be
       write-only or excluded from serialized responses.
     """
-    
     # Check if rate limit was hit
     if getattr(request, 'limited', False):
         return Response(
@@ -110,6 +113,7 @@ def create_user(request):
         )
 
     serializer = UserSerializer(data=request.data)
+    print("serializer: ", serializer)
     if serializer.is_valid():
         # Serializer.create() handles hashing the password
         serializer.save()
@@ -127,6 +131,14 @@ def get_user(request):
 
     user = request.user
     serializer = UserSerializer(user)
+    return Response(serializer.data)
+
+# TODO remove in production
+@api_view(['get'])
+@permission_classes([AllowAny])
+def fecth_all_users(request):
+    users = User.objects.all()
+    serializer = UserSerializer(users, many=True)
     return Response(serializer.data)
 
 @api_view(['GET', 'PUT', 'DELETE'])
