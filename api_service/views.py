@@ -48,7 +48,7 @@ class StandardResultsSetPagination(PageNumberPagination):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
-@ratelimit(key='ip', rate='1/m', method='POST')
+@ratelimit(key='ip', rate='5/m', method='POST')
 def login_user (request):
     """Authenticate a user and return an auth token.
 
@@ -91,7 +91,7 @@ def login_user (request):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
-@ratelimit(key='ip', rate='1000/h', method='POST')
+@ratelimit(key='ip', rate='5/h', method='POST')
 def create_user(request):
     """Create a new user.
 
