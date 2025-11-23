@@ -16,7 +16,7 @@ urlpatterns = [
     # transactions
     path('transactions/', views.get_transactions, name='get_transactions'),
     path('transactions/create', views.create_transaction, name='create_transaction'),
-    path('transactions/<int:pk>', views.transaction_detail, name='edit_transaction'),
+    path('transactions/<int:pk>/', views.transaction_detail, name='edit_transaction'),
     # goals
     path('goals/', views.get_goals, name='get_goals'),
     path('goals/create/', views.create_goal, name='create_goal'),
@@ -27,6 +27,6 @@ urlpatterns = [
     path('wallet/create/', views.wallet_create, name='wallet_create'),
     path('wallet/update/', views.wallet_create, name='wallet_update'),
     path('wallet/list/', views.wallet_list, name='wallet_list'),
-    path('wallet/list/<int:pk>', views.wallet_list, name='wallet_list'),
-    path('wallet/delete/<int:pk>', views.wallet_delete, name='wallet_delete')
+    path('wallet/list/<int:pk>/', views.wallet_list, name='wallet_list'),
+    path('wallet/delete/<int:pk>/', views.wallet_delete, name='wallet_delete')
 ]

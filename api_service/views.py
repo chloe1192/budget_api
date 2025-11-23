@@ -584,11 +584,14 @@ def wallet_update(request, pk):
 def wallet_list(request, pk=None):
     if pk:
         wallet = get_object_or_404(Wallet, user=request.user, pk=pk)
-        serializer = WalletSerializer(wallet)
+        if wallet:
+            serializer = WalletSerializer(wallet).data
+            return Response(serializer, status=status.HTTP_200_OK)
     else:
         wallet = Wallet.objects.filter(user=request.user)
-        serializer = WalletSerializer(wallet, many=True).data
-        return Response(serializer, status=status.HTTP_200_OK)
+        if wallet:
+            serializer = WalletSerializer(wallet, many=True).data
+            return Response(serializer, status=status.HTTP_200_OK)
     return Response(status=status.HTTP_404_NOT_FOUND)
 
 @api_view(['DELETE'])

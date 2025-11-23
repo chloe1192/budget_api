@@ -68,6 +68,32 @@ class UserSerializer(serializers.ModelSerializer):
             user.save()
         return user
 
+class CurrencySerializer(serializers.ModelSerializer):
+  class Meta:
+    model = Currency
+    fields = '__all__'
+    read_only = True
+
+class WalletSerializer(serializers.ModelSerializer):
+  
+  currency_id = serializers.PrimaryKeyRelatedField(
+    queryset = Currency.objects.all(), source='currency', write_only=True
+  )
+  currency = CurrencySerializer(read_only=True)
+  total_balance = serializers.SerializerMethodField(read_only=True)
+  wallet_balance_in_usd = serializers.SerializerMethodField(read_only=True)
+  
+  class Meta:
+    model = Wallet
+    fields = ['id', 'currency_id', 'currency', 'user', 'initial_balance', 'total_balance', 'created_at', 'wallet_balance_in_usd']
+    read_only_fields = ['user', 'created_at', 'currency']
+    
+  def get_total_balance(self, obj):
+    return obj.get_total_balance()
+  
+  def get_wallet_balance_in_usd(self, obj):
+    return obj.get_wallet_balance_in_usd()
+  
 class CategorySerializer(serializers.ModelSerializer):
     """Serializer for Category model.
 
@@ -102,18 +128,21 @@ class TransactionSerializer(serializers.ModelSerializer):
       }
     )
 
-    # Accept category PK on write, map to `category` relation.
     category_id = serializers.PrimaryKeyRelatedField(
         queryset=Category.objects.all(), source='category', write_only=True
     )
-    # Return nested category representation on reads.
     category = CategorySerializer(read_only=True)
+    
+    wallet_id = serializers.PrimaryKeyRelatedField(
+      queryset = Wallet.objects.all(), source='wallet', write_only=True
+    )
+    wallet = WalletSerializer(read_only=True)
 
     class Meta:
         model = Transaction
-        fields = ['id', 'title', 'description', 'amount', 'date', 'category', 'category_id']
+        fields = ['id', 'title', 'description', 'amount', 'date', 'category', 'category_id', 'wallet', 'wallet_id']
         # user and category are managed server-side / read-only in responses
-        read_only_fields = ['user', 'category']
+        read_only_fields = ['user', 'category', 'wallet']
 
     def validate_date(self, value):
       """Require timezone-aware datetimes for consistency."""
@@ -135,6 +164,11 @@ class GoalSerializer(serializers.ModelSerializer):
         'invalid': 'Invalid datetime format for "date". Use ISO 8601, e.g., 2025-11-16T14:30:00Z or 2025-11-16T14:30:00+00:00.'
       }
     )
+    
+    currency_id = serializers.PrimaryKeyRelatedField(
+      queryset = Currency.objects.all(), source='currency', write_only=True
+    )
+    currency = CurrencySerializer(read_only=True)    
 
     class Meta:
         model = Goal
@@ -146,30 +180,3 @@ class GoalSerializer(serializers.ModelSerializer):
       if timezone.is_naive(value):
         raise serializers.ValidationError('The "date" must include a timezone offset (e.g., Z or +00:00).')
       return value
-
-class CurrencySerializer(serializers.ModelSerializer):
-  class Meta:
-    model = Currency
-    fields = '__all__'
-    read_only = True
-
-class WalletSerializer(serializers.ModelSerializer):
-  
-  currency_id = serializers.PrimaryKeyRelatedField(
-    queryset = Currency.objects.all(), source='currency', write_only=True
-  )
-  currency = CurrencySerializer(read_only=True)
-  total_balance = serializers.SerializerMethodField(read_only=True)
-  wallet_balance_in_usd = serializers.SerializerMethodField(read_only=True)
-  
-  class Meta:
-    model = Wallet
-    fields = ['id', 'currency_id', 'currency', 'user', 'initial_balance', 'total_balance', 'created_at', 'wallet_balance_in_usd']
-    read_only_fields = ['user', 'created_at', 'currency']
-    
-  def get_total_balance(self, obj):
-    return obj.get_total_balance()
-  
-  def get_wallet_balance_in_usd(self, obj):
-    return obj.get_wallet_balance_in_usd()
-  
