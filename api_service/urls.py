@@ -21,4 +21,12 @@ urlpatterns = [
     path('goals/', views.get_goals, name='get_goals'),
     path('goals/create/', views.create_goal, name='create_goal'),
     path('goals/<int:pk>/', views.goal_detail, name='goal_detail'),
+    # currencies
+    path('currencies/', views.currency_list, name='currency_list'),
+    # wallets
+    path('wallet/create/', views.wallet_create, name='wallet_create'),
+    path('wallet/update/', views.wallet_create, name='wallet_update'),
+    path('wallet/list/', views.wallet_list, name='wallet_list'),
+    path('wallet/list/<int:pk>', views.wallet_list, name='wallet_list'),
+    path('wallet/delete/<int:pk>', views.wallet_delete, name='wallet_delete')
 ]

@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.utils import timezone
-from .models import Category, Transaction, User, Goal
+from .models import Category, Currency, Transaction, User, Goal, Wallet
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 
@@ -11,12 +11,12 @@ class UserSerializer(serializers.ModelSerializer):
     via the model's ``set_password`` method before saving.
     """
     
-    total_balance = serializers.SerializerMethodField(read_only=True)
+    total_wallets_balance_in_usd = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = User
         # Keep password write-only so it never appears in serialized output
-        fields = ['id', 'username', 'first_name', 'last_name', 'email', 'dob', 'avatar', 'initial_balance', 'created_at', 'edited_at', 'password', 'total_balance']
+        fields = ['id', 'username', 'first_name', 'last_name', 'email', 'dob', 'avatar', 'initial_balance', 'created_at', 'edited_at', 'password', 'total_wallets_balance_in_usd']
         extra_kwargs = {
             'password': {'write_only': True, 'required': False},
             'dob': {'required': False},
@@ -24,9 +24,9 @@ class UserSerializer(serializers.ModelSerializer):
             'initial_balance': {'required': False}
         }
     
-    def get_total_balance(self, obj):
+    def get_total_wallets_balance_in_usd(self, obj):
         """Return the user's calculated total balance."""
-        return obj.get_total_balance()
+        return obj.get_total_wallets_balance_in_usd()
     
     def validate_password(self, value):
       """Validate password using Django's password validators."""
@@ -146,3 +146,30 @@ class GoalSerializer(serializers.ModelSerializer):
       if timezone.is_naive(value):
         raise serializers.ValidationError('The "date" must include a timezone offset (e.g., Z or +00:00).')
       return value
+
+class CurrencySerializer(serializers.ModelSerializer):
+  class Meta:
+    model = Currency
+    fields = '__all__'
+    read_only = True
+
+class WalletSerializer(serializers.ModelSerializer):
+  
+  currency_id = serializers.PrimaryKeyRelatedField(
+    queryset = Currency.objects.all(), source='currency', write_only=True
+  )
+  currency = CurrencySerializer(read_only=True)
+  total_balance = serializers.SerializerMethodField(read_only=True)
+  wallet_balance_in_usd = serializers.SerializerMethodField(read_only=True)
+  
+  class Meta:
+    model = Wallet
+    fields = ['id', 'currency_id', 'currency', 'user', 'initial_balance', 'total_balance', 'created_at', 'wallet_balance_in_usd']
+    read_only_fields = ['user', 'created_at', 'currency']
+    
+  def get_total_balance(self, obj):
+    return obj.get_total_balance()
+  
+  def get_wallet_balance_in_usd(self, obj):
+    return obj.get_wallet_balance_in_usd()
+  

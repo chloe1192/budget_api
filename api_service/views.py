@@ -30,8 +30,8 @@ from django.db.models import Q, Count
 from django_ratelimit.decorators import ratelimit
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
-from .models import Category, Transaction, User, Goal
-from .serializers import CategorySerializer, TransactionSerializer, UserSerializer, GoalSerializer
+from .models import Category, Currency, Transaction, User, Goal, Wallet
+from .serializers import CategorySerializer, CurrencySerializer, TransactionSerializer, UserSerializer, GoalSerializer, WalletSerializer
 
 
 class StandardResultsSetPagination(PageNumberPagination):
@@ -72,8 +72,6 @@ def login_user (request):
     username = request.data.get('username')
     password = request.data.get('password')
     user_exists = get_object_or_404(User, username=username)
-    if not settings.PRODUCTION:
-        print("User exists: ", user_exists)
     if user_exists == "":
         return Response({"error": "O usuario nao existe"}, status=status.HTTP_400_BAD_REQUEST)
     user = authenticate(username=username, password=password)
@@ -113,11 +111,7 @@ def create_user(request):
             {"error": "Too many registration attempts. Please try again later."},
             status=status.HTTP_429_TOO_MANY_REQUESTS
         )
-
     serializer = UserSerializer(data=request.data)
-    
-    if not settings.PRODUCTION:
-        print("UserSerializer: ", serializer)
         
     if serializer.is_valid():
         # Serializer.create() handles hashing the password
@@ -552,3 +546,56 @@ def goal_detail(request, pk):
     elif request.method == 'DELETE':
         goal.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+# currencies
+@api_view(['GET'])
+def currency_list(request):
+    currencies = Currency.objects.all()
+    serializer = CurrencySerializer(currencies, many=True)
+    if serializer:
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+# wallet
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def wallet_create(request):
+    serializer = WalletSerializer(data=request.data)
+    if serializer.is_valid():
+        serializer.save(user=request.user)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def wallet_update(request, pk):
+    wallet = get_object_or_404(Wallet, pk=pk, user=request.user)
+    if wallet:
+        serializer = WalletSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    return Response(serializer.errors, status=status.HTTP_401_UNAUTHORIZED)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def wallet_list(request, pk=None):
+    if pk:
+        wallet = get_object_or_404(Wallet, user=request.user, pk=pk)
+        serializer = WalletSerializer(wallet)
+    else:
+        wallet = Wallet.objects.filter(user=request.user)
+        serializer = WalletSerializer(wallet, many=True).data
+        return Response(serializer, status=status.HTTP_200_OK)
+    return Response(status=status.HTTP_404_NOT_FOUND)
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def wallet_delete(request, pk):
+    wallet = get_object_or_404(Wallet, pk=pk, user=request.user)
+    if wallet:
+        wallet.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+    return Response(status=status.HTTP_404_NOT_FOUND)
